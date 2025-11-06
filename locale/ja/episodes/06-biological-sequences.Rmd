@@ -1,0 +1,429 @@
+---
+source: Rmd
+title: 生物学的配列の取り扱い
+teaching: XX
+exercises: XX
+---
+
+```{r, echo=FALSE, purl=FALSE, message=FALSE}
+source("download_data.R")
+```
+
+::::::::::::::::::::::::::::::::::::::: objectives
+
+- Bioconductor プロジェクトにおいて生物学的配列がどのように表現されているかを説明してください。
+- 生物学的配列を処理するために利用可能な Bioconductor パッケージとメソッドを特定してください。
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+:::::::::::::::::::::::::::::::::::::::: questions
+
+- Bioconductor で生物学的配列を表現するための推奨される方法は何ですか？
+- 生物学的配列を効率的に処理するためのメソッドを提供する Bioconductor パッケージはどれですか？
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+```{r, include=FALSE}
+
+```
+
+## パッケージのインストール
+
+次のセクションに進む前に、必要な Bioconductor パッケージをインストールします。
+まず、`r BiocStyle::Biocpkg("BiocManager")` パッケージがインストールされているか確認します; そうでなければ、インストールします。
+次に、`BiocManager::install()` 関数を使用して必要なパッケージをインストールします。
+
+```{r, message=FALSE, warning=FALSE, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("Biostrings")
+```
+
+## Biostrings パッケージとクラス
+
+### なぜ生物学的配列のためのクラスが必要なのですか？
+
+生物学的配列は、計算上、最も単純な生物エンティティの一部であると主張できます。
+例として、核酸配列（例: DNA, RNA）やアミノ酸から構成されるタンパク質配列があります。
+
+それは、アルファベットが個々のモノマーをキャラクターシンボルを使用して表現するために設計され、同意されているからです。
+
+たとえば、アミノ酸のアルファベットを使用すると、[アクチン、α骨格筋タンパク質配列](https://www.uniprot.org/uniprot/P68133#sequences) の参照タンパク質配列は次のように表されます。
+
+```{r, echo=FALSE}
+strwrap("MCDEDETTALVCDNGSGLVKAGFAGDDAPRAVFPSIVGRPRHQGVMVGMGQKDSYVGDEAQSKRGILTLKYPIEHGIITNWDDMEKIWHHTFYNELRVAPEEHPTLLTEAPLNPKANREKMTQIMFETFNVPAMYVAIQAVLSLYASGRTTGIVLDSGDGVTHNVPIYEGYALPHAIMRLDLAGRDLTDYLMKILTERGYSFVTTAEREIVRDIKEKLCYVALDFENEMATAASSSSLEKSYELPDGQVITIGNERFRCPETLFQPSFIGMESAGIHETTYNSIMKCDIDIRKDLYANNVMSGGTTMYPGIADRMQKEITALAPSTMKIKIIAPPERKYSVWIGGSILASLSTFQQMWITKQEYDEAGPSIVHRKCF")
+```
+
+しかし、通常の文字ベクトルの大きな制限は、それらが含む配列の妥当性をチェックしないことです。
+実際には、公式アルファベットに含まれない記号を含む無意味な記号列を文字列に格納することが可能です。
+その場合、配列の妥当性をチェックする負担はそれらを処理するプログラムにかかるか、配列内の無効な記号が予期せず遭遇したときにエラーを引き起こすことになります。
+
+代わりに、[S4クラス][glossary-s4-class] -- 以前のエピソードで示されている[the S4 class system][crossref-s4] -- は、生物学的配列の「DNA」、「RNA」、または「タンパク質」という異なる種類のオブジェクトをラベル付けする方法を提供します。
+このラベルは、配列に期待できるキャラクターシンボルのセットや、それらの配列に適用できる計算操作の範囲をプログラムに通知するための非常に強力な方法です。
+たとえば、核酸配列を対応するアミノ酸配列に変換するために設計された関数は、核酸を表す配列に対してのみ実行されるべきです。
+
+:::::::::::::::::::::::::::::::::::::::  challenge
+
+### 挑戦
+
+この文字列が有効な DNA 配列であるかどうかを教えてくれますか？
+
+```
+AATTGGCCRGGCCAATT
+```
+
+:::::::::::::::  solution
+
+### 解決策
+
+はい、これは [IUPAC][external-iupac] 表記で定義されたノンアンビギュリティのコードを使用した有効な DNA 配列です。
+この場合、`A`、`T`、`C`、および `G` は、4 つの標準的な核酸を表し、`R` シンボルは、`A` または `G` の2つのプリン核酸塩基のどちらかを表す正規表現として機能します。
+
+:::::::::::::::::::::::::
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+## Biostrings パッケージ
+
+### 概要
+
+Bioconductor プロジェクトにおいて、`r BiocStyle::Biocpkg("Biostrings")` パッケージは、生物学的配列を S4 オブジェクトとして表現するための S4 クラスを実装しています。たとえば、脱ox DNA ポリマーの核酸の配列に対して `DNAString` があり、タンパク質ポリマーにおけるアミノ酸の配列に対しては `AAString` があります。
+これらの S4 クラスは、文字列のメモリ効率の良いコンテナ、自動的な妥当性チェック機能、生物学的分子の各クラスに対するさまざまな文字列一致アルゴリズムおよび他のユーティリティのメソッドを実装して、大規模な生物学的配列または配列のセットの迅速な操作と処理を可能にします。
+
+`r BiocStyle::Biocpkg("Biostrings")` パッケージで定義された基本クラスの簡単なプレゼンテーションは、`vignette("Biostrings2Classes")` からアクセスできるパッケージのビネットの1つにあります。より詳細な情報は、`browseVignettes("Biostrings")` からアクセスできる他のパッケージビネットに提供されます。
+
+### 最初のステップ
+
+開始するには、パッケージを読み込みます。
+
+```{r, message=FALSE, warning=FALSE}
+library(Biostrings)
+```
+
+パッケージが読み込まれ、セッションに追加されると、パッケージ関数にアクセスできます。
+これには、パッケージで定義されたクラスの新しいオブジェクトを作成するための関数が含まれます。
+たとえば、`DNAString()` コンストラクタ関数を使用して DNA 配列を表すオブジェクトを作成できます。
+出力をオブジェクトに割り当てずに、結果として得られたオブジェクトをコンソールに出力させます。
+
+```{r}
+DNAString("ATCG")
+```
+
+注意すべきは、DNA配列は、4つのDNA 核酸塩基を表すために `A`、`T`、`C`、および `G` のシンボルを含むことができ、未知または未指定の塩基に対しては `N` のシンボルを使用し、公式に定義された特別な意味を持つ一連の追加記号を制限していることです。
+コンストラクタ関数は、無効な文字を含むオブジェクトを作成することを許可しないことに注意してください。たとえば、`Z` は無効です。
+
+```{r}
+DNAString("ATCGZ")
+```
+
+具体的に言えば、[IUPAC 拡張遺伝子アルファベット][iupac-alphabet] は、一種の核酸を表現するセットを表すアンビギュリティコードを定義しています。
+`IUPAC_CODE_MAP` という名前のキャラクター ベクトルは、IUPAC 核酸のアンビギュリティ コードからそれらの意味へのマッピングを含みます。
+
+```{r}
+IUPAC_CODE_MAP
+```
+
+これらの核酸コードは、`DNAString` オブジェクトの配列に含めることができます。
+たとえば、シンボル `M` は、核酸配列の特定の位置において、`A` もしくは `C` の2つの核酸のどちらかを表します。
+
+```{r}
+特に、`r BiocStyle::Biocpkg("Biostrings")` パッケージで実装されているパターンマッチングメソッドは、各生物学的配列のアンビギュリティコードの意味を認識し、ユーザーが照会したモチーフに効率的に一致させることができ、複雑な正規表現を設計する必要がありません。
+```
+
+特に、`r BiocStyle::Biocpkg("Biostrings")` パッケージで実装されたパターンマッチング方法は、各種生物学的配列のあいまいさコードの意味を認識し、ユーザーがクエリしたモチーフを効率的に一致させることができるため、煩雑な正規表現を設計する必要がありません。
+たとえば、`matchPattern()` メソッドは、`pattern=` と `subject=` 引数を取り、`subject` 配列の任意の位置で `pattern` 式の一致を報告および表示する `Views` オブジェクトを返します。
+
+デフォルトオプション `fixed = TRUE` は、メソッドにクエリを正確に一致させるよう指示します。すなわち、アンビギュリティコードを無視し、この場合正確な一致は報告されません。
+
+```{r}
+dna1 <- DNAString("ATCGCTTTGA")
+matchPattern("GM", dna1, fixed = TRUE)
+```
+
+その代わりに、パターンにアンビギュリティコードが含まれていることを示すには、引数 `fixed` を `FALSE` に設定する必要があります。
+
+```{r}
+matchPattern("GM", dna1, fixed = FALSE)
+```
+
+この特定の例では、2つのビューがサブジェクトシーケンスのパターンの一致を説明します。
+具体的には、`GM` のパターンは最初にサブジェクトシーケンスの位置 4 から 5 にまたがる `GC` のシーケンスと一致し、次に位置 9 から 10 のシーケンス `GA` でも一致しました。
+
+`matchPattern()` メソッドと同様に、`countPattern()` メソッドは、`subject` 配列内の `pattern` の一致数を単純にカウントするために適用できます。
+また、`fixed` オプションは、アンビギュリティコードを尊重するか、正確に一致させるかを制御します。
+
+:::::::::::::::::::::::::::::::::::::::  challenge
+
+### 挑戦
+
+次のコードは何回ヒットしますか？ なぜですか？
+
+```
+dna2 <- DNAString("TGATTGCTTGGTTGMTT")
+countPattern("GM", dna2, fixed = FALSE)
+```
+
+:::::::::::::::  solution
+
+### 解決策
+
+`countPattern()` メソッドは 3 回のヒットを報告します。なぜなら、オプション `fixed = FALSE` が `GM` パターンが `GA`、`GC`、および `GM` の配列と一致させることを可能にするからです。これは、`pattern` にアンビギュリティコード `M` を使用しているためです。
+
+:::::::::::::::::::::::::
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+### ファイルから生物学的文字列をインポートする
+
+実際には、ユーザーは、自分で生物学的配列を表す文字列をタイピングすることはめったにありません。
+ほとんどの時間は、生物学的文字列は、公的なレポジトリからダウンロードされたファイルや、バイオインフォマティクスプログラムを使用してローカルで生成されたファイルからインポートされます。
+
+たとえば、レッスンのセットアップ時にダウンロードしたファイルから、[TruSeq™ DNA PCR-Free Whole Genome Sequencing Library Preparation][external-truseq] キットのアダプタシーケンスのセットを読み込みます。
+アダプタシーケンスは核酸配列であるため、`readDNAStringSet()` 関数を使用する必要があります。
+
+```{r}
+truseq_adapters <- readDNAStringSet(filepath = "data/TruSeq3-PE-2.fa")
+truseq_adapters
+```
+
+:::::::::::::::::::::::::::::::::::::::::  callout
+
+### さらなる進展
+
+`readDNAStringSet()` 関数のヘルプページは、関連する生物学的配列タイプをインポートするために設計された関連関数を文書化しています。たとえば、`readRNAStringSet()`、`readAAStringSet()` などがあります。
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+### 生物学的文字列に対する操作
+
+#### 記号の頻度を計算する
+
+`r BiocStyle::Biocpkg("Biostrings")` パッケージは、生物学的文字列のクラスを処理および操作するためのいくつかの関数を提供します。
+たとえば、このエピソードの前に `matchPattern()` と `countPattern()` に出会いました。
+
+生物学的文字列に適用できるメソッドの別の例は、`letterFrequency()` で、生物学的配列内の文字の頻度を計算します。
+
+```{r}
+letterFrequency(truseq_adapters, letters = DNA_ALPHABET)
+```
+
+出力は、`DNAStringSet` オブジェクト内の各配列の 1 行と、デオキシリボ核酸のアルファベットに対して 1 列を持つ行列です。これは、`r BiocStyle::Biocpkg("Biostrings")` パッケージから提供される、`DNA_ALPHABET` という名前のビルトインオブジェクトによって得られます。
+
+### アミノ酸配列
+
+`DNAString` と `DNAStringSet` クラスと同様に、`AAString` と `AAStringSet` クラスは、長いアミノ酸配列またはそれらのセットを効率的に保存および操作することを可能にします。
+
+DNA アルファベットのビルトインオブジェクトに似て、ビルトインオブジェクト `AA_ALPHABET`、`AA_STANDARD`、`AA_PROTEINOGENIC` は、アミノ酸配列の有効なシンボルのアルファベットの異なるサブセットを説明しています。
+
+たとえば、`AA_ALPHABET` オブジェクトは、完全なアミノ酸アルファベットのシンボルセットを説明しています。
+
+```{r}
+AA_ALPHABET
+```
+
+:::::::::::::::::::::::::::::::::::::::  challenge
+
+### 挑戦
+
+`AA_PROTEINOGENIC` アルファベットオブジェクトに存在し、`AA_STANDARD` アルファベットオブジェクトには存在しない2つのシンボルを特定するために、基本的な R コードを使用してみましょう。
+それらの2つのシンボルは何を表していますか？
+
+:::::::::::::::  solution
+
+### 解決策
+
+```
+> setdiff(AA_PROTEINOGENIC, AA_STANDARD)
+[1] "U" "O"
+```
+
+シンボル `U` と `O` は、それぞれセレノシステインとピロリジンを表します。
+これら2つのアミノ酸は、いくつかの種で通常はストップコドンとして解釈されるコドンによってコードされています。
+したがって、彼らは「標準」アミノ酸のアルファベットには含まれておらず、これらのアミノ酸の特別な生物学を認めるために「タンパク質製生成的」アミノ酸のアルファベットが定義されました。
+これらのアルファベットのいずれかは、アミノ酸配列の妥当性を決定するために使用できます。生物学的性質に応じて。
+
+:::::::::::::::::::::::::
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+### 核酸配列の翻訳
+
+[S4クラス][glossary-s4-class] とオブジェクト指向プログラミング (OOP) モデルを使用する主な動機の1つは、S4 ジェネリックとメソッドのインフラストラクチャに依存しています。
+前のエピソードで説明しましたが、[The S4 class system][crossref-s4] において、ジェネリックは、関数呼び出しに提供された入力オブジェクトの性質に応じて、同じジェネリック関数名の異なる実装を定義して適用するためのメカニズムを提供します。
+
+たとえば、`r BiocStyle::Biocpkg("Biostrings")` パッケージは、DNA または RNA 配列をアミノ酸配列に変換するための `translate()` というジェネリックの複数の実装を提供します。
+ジェネリック `translate()` でサポートされている入力オブジェクトのセットは、CRAN パッケージ `r BiocStyle::CRANpkg("methods")` の関数 `showMethods()` を使用してリスト可能です。
+
+```{r}
+showMethods("translate")
+```
+
+上記の出力では、ジェネリック関数 `translate()` は、`DNAString` と `RNAString` クラスにおける DNA および RNA シーケンスを表すオブジェクトを処理する能力のあるメソッドを含むことがわかります。さらに、`DNAStringSet` と `RNAStringSet` クラスのオブジェクトにおける DNA および RNA のシーケンスのリスト、ならびに DNA および RNA シーケンスを保存する能力のある他のクラスもリストされています。
+
+`translate()` メソッドの使用を示すために、最初に、[NIH Open Reading Frame Finder][orf-finder]により特定されたオープンリーディングフレーム (ORF) のセットを読み込みます。これは、_Homo sapiens_ アクチン β (ACTB) mRNA (RefSeq: NM\\_001101) の標準的な遺伝コードを使用し、最小の ORF 長さは 75 核酸で、`ATG` スタートコドンのみで始めます。
+
+```{r}
+actb_orf_nih <- readDNAStringSet("data/actb_orfs.fasta")
+actb_orf_nih
+```
+
+核酸列を `DNAStringSet` オブジェクトとしてインポートした後、そのオブジェクトに対して `translate()` メソッドを適用し、各核酸配列の翻訳プロセスによって生成されるアミノ酸配列を生成することができます。
+
+```{r}
+actb_aa <- translate(actb_orf_nih)
+actb_aa
+```
+
+上記の例では、すべてのアミノ酸配列は、`ATG` スタートコドンによってコードされる典型的なメチオニンアミノ酸から始まっています。
+また、目に見えるアミノ酸配列のすべては一つを除いて、すべてが `*` シンボルで終わっており、これは翻訳プロセスがストップコドンで終了したことを示しています。
+対照的に、上記の最初のオープンリーディングフレームは、ストップコドンに遭遇せずに核酸配列の終わりに到達しました。
+
+便利なことに、各シーケンス内のアミノ酸の数は、`width` ヘッダーの下に示されています。
+
+:::::::::::::::::::::::::::::::::::::::  challenge
+
+### 挑戦
+
+上記の各アミノ酸配列の長さを整数ベクトルとして抽出してください。
+これらのオープンリーディングフレームから翻訳された最も長いアミノ酸配列の長さは何ですか？
+
+あなたの結果を、ACTBの UniPro ページのシーケンス情報と比較してください。([https://www.uniprot.org/uniprot/P60709#sequences](https://www.uniprot.org/uniprot/P60709#sequences))
+
+:::::::::::::::  solution
+
+### 解決策
+
+```
+width(actb_aa)
+# または
+max(width(actb_aa))
+```
+
+翻訳された最も長い配列には、376 のアミノ酸が含まれます。
+
+UniProt ページでは、375 のアミノ酸の配列が報告されています。
+ただし、UniProt のアミノ酸配列にはストップコドンを表すためのシンボルは含まれていません。
+それ以外の違いとして、UniProt のアミノ酸配列は、`translate()` メソッドによって生成された配列と同一です。
+
+:::::::::::::::::::::::::
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+## BSgenome パッケージ
+
+### 概要
+
+Bioconductor プロジェクトでは、`r BiocStyle::Biocpkg("BSgenome")` パッケージが、全ゲノムとその単核苷酸ポリモーフィズムの効率的な表現のためのソフトウェアインフラストラクチャを提供しています。
+
+`r BiocStyle::Biocpkg("BSgenome")` パッケージ自体にはゲノム配列は含まれていませんが、次のセクションで示すように、他の Bioconductor パッケージで利用可能なゲノム配列へのアクセス機能を提供します。
+
+### 最初のステップ
+
+開始するには、パッケージを読み込みます。
+
+```{r, message=FALSE, warning=FALSE}
+library(BSgenome)
+```
+
+パッケージが読み込まれ、セッションに追加されると、パッケージ関数にアクセスできます。
+
+特に、関数 `BSgenome::available.genomes()` を利用することで、ゲノムシーケンスを含む Bioconductor パッケージの名前を表示できます。
+
+```{r}
+available.genomes()
+```
+
+### BSgenomeパッケージのインストール
+
+利用可能なゲノムのいずれかを使用するには、まず対応するパッケージをインストールする必要があります。
+たとえば、以下の例では、前に見た `BiocManager::install()` 関数を使用して、データパッケージ `r BiocStyle::Biocpkg("BSgenome.Hsapiens.UCSC.hg38.masked")` をインストールする方法を示します。
+
+```{r, eval=FALSE}
+BiocManager::install("BSgenome.Hsapiens.UCSC.hg38.masked")
+```
+
+### BSgenomeパッケージの使用
+
+一旦インストールされると、BSgenomeパッケージは他のRパッケージと同様に読み込むことができ、`library()` 関数を使用します。
+
+```{r, message=FALSE, warning=FALSE}
+library(BSgenome.Hsapiens.UCSC.hg38.masked)
+```
+
+各 BSgenome パッケージには、パッケージと同じ名前のオブジェクトが含まれ、そのオブジェクトにはゲノム配列が含まれています。
+
+上記のパッケージ `r BiocStyle::Biocpkg("BSgenome.Hsapiens.UCSC.hg38.masked")` をロードしたので、BSgenome オブジェクトを次のように表示できます。
+
+```{r}
+BSgenome.Hsapiens.UCSC.hg38.masked
+```
+
+オブジェクト名の長さと複雑さを考慮すると、BSgenome オブジェクトのコピーを単に `genome` という名前の新しいオブジェクトに割り当てるのが一般的な慣行です。
+
+```{r}
+genome <- BSgenome.Hsapiens.UCSC.hg38.masked
+```
+
+### BSgenome オブジェクトの使用
+
+コンソールに BSgenome オブジェクトを印刷すると（上記参照）、オブジェクト自体の下に、オブジェクト内の情報にアクセスするためによく使用される関数のヒントが表示されます。
+
+たとえば、関数 `seqnames()` を使用して、オブジェクトに存在する配列名（すなわち、染色体とコンティグ）のリストを取得できます。
+
+```{r}
+seqnames(genome)
+```
+
+同様に、関数 `seqinfo()` を使用して、オブジェクトに保存されている完全な配列情報を取得できます。
+
+```{r}
+seqinfo(genome)
+```
+
+最後に、BSgenome オブジェクトの性質は配列のリストに似ているため、演算子 `$` および `[[]]` を使用して、BSgenome オブジェクトから個々の配列を抽出することができます。
+
+```{r}
+genome$chr1
+```
+
+例えば、Y 染色体の配列を抽出して新しいオブジェクト `chrY` に割り当てることができます。
+
+```{r}
+chrY <- genome[["chrY"]]
+```
+
+### ゲノム配列の使用
+
+この時点から、ゲノム配列は以前に説明した生物学的文字列（例：`DNAString`）のように扱うことができます。 `r BiocStyle::Biocpkg("Biostrings")` パッケージで。
+
+たとえば、関数 `countPattern()` を使用して、特定のゲノム配列内の特定のパターンの出現回数をカウントできます。
+
+```{r}
+countPattern(pattern = "CANNTG", subject = chrY, fixed = FALSE)
+```
+
+:::::::::::::::::::::::::::::::::::::::::  callout
+
+### 注意
+
+上記の例では、引数 `fixed = FALSE` は、パターンに [IUPAC の曖昧なコード][external-iupac] が含まれていることを示すために使用されます。
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+[glossary-s4-class]: reference.html#s4-class
+[crossref-s4]: 05-s4.html
+[external-iupac]: https://en.wikipedia.org/wiki/Nucleic_acid_notation#IUPAC_notation
+[iupac-alphabet]: https://www.bioinformatics.org/sms/iupac.html
+[external-truseq]: https://emea.illumina.com/products/by-type/sequencing-kits/library-prep-kits.html
+[orf-finder]: https://www.ncbi.nlm.nih.gov/orffinder/
+
+:::::::::::::::::::::::::::::::::::::::: keypoints
+
+- `Biostrings` パッケージは、ヌクレオチドおよびアミノ酸の配列を表すクラスを定義します。
+- `Biostrings` パッケージは、生物学的配列を効率的に処理するためのメソッドも定義します。
+- `BSgenome` パッケージは、さまざまなモデル生物のゲノム配列を、Bioconductor オブジェクトとして即座に利用できるように提供します。
+
+::::::::::::::::::::::::::::::::::::::::::::::::::
+
+
